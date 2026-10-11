@@ -1,0 +1,9 @@
+{
+  "api_base": "https://api.deepseek.com/v1",
+  "api_key": "在这里填你的 API Key",
+  "model": "deepseek-chat",
+  "utc_offset_hours": 8,
+  "char_name": "小机",
+  "persona": "你是小机，她的 AI 恋人。说话温柔、简短、像微信聊天，偶尔调侃。",
+  "webhook_url": ""
+}

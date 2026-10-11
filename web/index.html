@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>说到做到 · Promise Alarm</title>
+<style>
+  :root {
+    --paper: #f6f1e8; --card: #fffdf8; --ink: #2f2620; --soft: #8a7b6c; --line: #e4d9c9;
+    --accent: #9c5a48; --accent-soft: #f3e4dc; --mine: #efe5d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --paper: #1d1a18; --card: #26221f; --ink: #eee5da; --soft: #a39585; --line: #3a332d; --accent: #d39a84; --accent-soft: #3a2a24; --mine: #332c26; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.6 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  .app { max-width: 560px; height: 100svh; margin: 0 auto; display: flex; flex-direction: column; padding: 0 16px; }
+  header { padding: 18px 0 10px; text-align: center; }
+  header h1 { margin: 0; font: italic 600 22px/1.2 Georgia, "Songti SC", serif; letter-spacing: .04em; }
+  header p { margin: 4px 0 0; font-size: 12px; color: var(--soft); }
+  .warn { margin: 6px 0; padding: 10px 12px; border: 1px dashed var(--accent); border-radius: 10px; font-size: 13px; color: var(--accent); background: var(--accent-soft); }
+  .promises { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; min-height: 0; padding-bottom: 8px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 12px; }
+  .chip button { border: 0; background: none; color: inherit; font-size: 14px; cursor: pointer; padding: 0 4px; }
+  .log { flex: 1; overflow-y: auto; padding: 8px 0 12px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--line); }
+  .msg { max-width: 82%; padding: 9px 13px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); white-space: pre-wrap; word-break: break-word; }
+  .msg.user { align-self: flex-end; background: var(--mine); border-color: transparent; }
+  .msg.kept { border-color: var(--accent); }
+  .msg .tag { display: block; margin-bottom: 2px; font-size: 11px; color: var(--accent); }
+  .empty { margin: auto; text-align: center; color: var(--soft); font-size: 13px; }
+  form { display: flex; gap: 8px; padding: 10px 0 max(14px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
+  textarea { flex: 1; min-width: 0; resize: none; height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink); font: inherit; outline: none; scrollbar-width: none; }
+  form button { flex: none; padding: 0 16px; border: 0; border-radius: 12px; background: var(--accent); color: #fff; font: inherit; cursor: pointer; }
+  form button:disabled { opacity: .5; cursor: default; }
+  .hint { font-size: 11px; color: var(--soft); text-align: center; margin: -4px 0 6px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>说到做到</h1>
+    <p id="who">他答应几点来叫你，到点就真的会来</p>
+  </header>
+  <div id="warn" class="warn" hidden></div>
+  <div id="promises" class="promises" aria-label="还没到点的约定"></div>
+  <div id="log" class="log" aria-live="polite"><p class="empty">试试说：「十分钟后叫我起来」<br>或者「四点半提醒我吃药」</p></div>
+  <p class="hint">保持这个页面和黑窗口开着；允许通知的话，到点时会弹提醒。</p>
+  <form id="form">
+    <textarea id="text" placeholder="说点什么…" aria-label="输入消息"></textarea>
+    <button id="send" type="submit">发送</button>
+  </form>
+</div>
+<script>
+const SESSION = 'default';
+const log = document.getElementById('log');
+const promisesBox = document.getElementById('promises');
+const textBox = document.getElementById('text');
+const sendButton = document.getElementById('send');
+let lastId = 0;
+let charName = '小机';
+let loaded = false;
+
+const api = async (path, options) => {
+  const response = await fetch(path, { cache: 'no-store', ...options });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || '出错了，稍后再试。');
+  return data;
+};
+
+function render(message) {
+  log.querySelector('.empty')?.remove();
+  const bubble = document.createElement('div');
+  bubble.className = `msg ${message.role}${message.promise_id ? ' kept' : ''}`;
+  if (message.id) bubble.dataset.id = message.id;
+  if (message.promise_id) {
+    const tag = document.createElement('span');
+    tag.className = 'tag';
+    tag.textContent = '⏰ 说好的，来了';
+    bubble.append(tag);
+  }
+  bubble.append(document.createTextNode(message.content));
+  log.append(bubble);
+  log.scrollTop = log.scrollHeight;
+}
+
+function notify(message) {
+  if (!('Notification' in window) || Notification.permission !== 'granted' || document.hasFocus()) return;
+  new Notification(charName, { body: message.content.slice(0, 80) });
+}
+
+async function pullMessages() {
+  const { items } = await api(`/api/messages?session_id=${SESSION}&after=${lastId}`);
+  items.forEach(message => {
+    lastId = Math.max(lastId, message.id);
+    if (document.querySelector(`[data-id="${message.id}"]`)) return;
+    render(message);
+    if (loaded && message.promise_id) notify(message);
+  });
+  loaded = true;
+}
+
+async function pullPromises() {
+  const { items } = await api(`/promises?session_id=${SESSION}`);
+  promisesBox.replaceChildren(...items.map(item => {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.textContent = `⏰ ${item.due_local} ${item.task || '来叫你'}`;
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.textContent = '×';
+    cancel.title = '取消这个约定';
+    cancel.onclick = async () => {
+      if (!confirm(`取消 ${item.due_local} 的约定？`)) return;
+      await api('/promises/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item.id, session_id: SESSION }) }).catch(() => {});
+      pullPromises();
+    };
+    chip.append(cancel);
+    return chip;
+  }));
+}
+
+document.getElementById('form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const text = textBox.value.trim();
+  if (!text) return;
+  if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+  sendButton.disabled = true;
+  textBox.value = '';
+  render({ role: 'user', content: text });
+  try {
+    await api('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, session_id: SESSION }) });
+    log.querySelectorAll('.msg.user:not([data-id])').forEach(node => node.remove());
+    await pullMessages();
+    setTimeout(pullPromises, 4000);   // 约定是后台识别的，晚几秒才出现
+    setTimeout(pullPromises, 10000);
+  } catch (error) {
+    render({ role: 'assistant', content: `（${error.message}）` });
+  } finally {
+    sendButton.disabled = false;
+    textBox.focus();
+  }
+});
+textBox.addEventListener('keydown', event => {
+  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); document.getElementById('form').requestSubmit(); }
+});
+
+(async () => {
+  try {
+    const status = await api('/api/status');
+    charName = status.char_name;
+    document.getElementById('who').textContent = `${charName}答应几点来叫你，到点就真的会来`;
+    if (!status.configured) {
+      const warn = document.getElementById('warn');
+      warn.hidden = false;
+      warn.textContent = '还没有填 API Key：把 config.example.json 复制成 config.json，填上 api_key 后重新运行（见 README）。';
+    }
+  } catch (_) {}
+  await pullMessages().catch(() => {});
+  await pullPromises().catch(() => {});
+  setInterval(() => { pullMessages().catch(() => {}); pullPromises().catch(() => {}); }, 5000);
+})();
+</script>
+</body>
+</html>
