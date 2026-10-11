@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Promise Alarm promo</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1280px; height: 640px; background: #f6efea; }
+  body { font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif; color: #3d3330; overflow: hidden; }
+  .frame { position: absolute; inset: 22px; border-radius: 34px; background: linear-gradient(135deg, #fdf8f4 0%, #f9eee8 55%, #f4e6e1 100%);
+           border: 1px solid #ecdcd3; overflow: hidden; }
+  .dots { position: absolute; inset: 0; background-image: radial-gradient(#e9d6cc 1.2px, transparent 1.3px); background-size: 22px 22px; opacity: .55; }
+  .tagline { position: absolute; right: 48px; top: 40px; font: 15px/1 Consolas, "Cascadia Mono", monospace; letter-spacing: .12em; color: #b07a68; }
+
+  /* ── left: two phone cards ── */
+  .phone { position: absolute; width: 270px; border-radius: 26px; background: #fffdfb; border: 1px solid #ead9cf;
+           box-shadow: 0 22px 50px rgba(120, 80, 60, .16), 0 2px 6px rgba(120, 80, 60, .08); overflow: hidden; }
+  .bar { height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 14px; border-bottom: 1px solid #f0e4dc;
+         font-size: 12px; font-weight: 700; color: #6f5b53; background: #fbf5f1; }
+  .bar i { width: 7px; height: 7px; border-radius: 50%; background: #e3c6b8; display: inline-block; }
+  .bar span { margin-left: auto; font: 400 11px Consolas, monospace; color: #b9a49b; }
+  .before { left: 64px; top: 96px; height: 440px; transform: rotate(-4deg); }
+  .after { left: 300px; top: 70px; height: 500px; z-index: 2; }
+
+  .msgs { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .me, .ai { max-width: 84%; padding: 9px 12px; border-radius: 16px; font-size: 12.5px; line-height: 1.55; }
+  .me { align-self: flex-end; background: #e9cfc4; color: #4a332b; border-bottom-right-radius: 6px; }
+  .ai { align-self: flex-start; background: #f5ede8; color: #4a3d38; border-bottom-left-radius: 6px; }
+  .ai.kept { background: #fff; border: 1.5px solid #c98a74; }
+  .ai.kept small { display: block; font-size: 10.5px; color: #b0614a; margin-bottom: 2px; }
+  .chip { align-self: center; margin: 6px 0 2px; padding: 5px 12px; border-radius: 999px; background: #f7e1d7; color: #9a5a46; font-size: 11.5px; font-weight: 700; }
+  .chip b { font-weight: 400; color: #c3a092; margin-left: 6px; }
+  .time { align-self: center; font-size: 10.5px; color: #b9a49b; margin: 4px 0; }
+  .zz { align-self: center; font-size: 22px; letter-spacing: .3em; color: #dcc3b7; margin: 18px 0 6px; }
+  .note { position: absolute; left: 14px; right: 14px; top: 50px; z-index: 3; background: rgba(255, 255, 255, .96); border-radius: 16px; padding: 10px 12px;
+          box-shadow: 0 12px 30px rgba(110, 70, 55, .22); border: 1px solid #efdcd2; display: flex; gap: 10px; align-items: flex-start; }
+  .note .ico { flex: none; width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, #c98a74, #9a5a46); color: #fff;
+               display: grid; place-items: center; font-size: 15px; }
+  .note p { font-size: 11px; color: #a08a80; }
+  .note p b { color: #5a4a44; font-size: 12px; margin-right: 6px; }
+  .note div div { font-size: 12.5px; color: #4a3d38; margin-top: 1px; }
+  .input { position: absolute; left: 12px; right: 12px; bottom: 12px; height: 34px; border-radius: 17px; background: #f6efea; color: #b9a49b;
+           font-size: 12px; display: flex; align-items: center; padding: 0 14px; }
+
+  /* ── right: copy ── */
+  .copy { position: absolute; left: 630px; top: 58px; width: 590px; }
+  .eyebrow { font-size: 17px; letter-spacing: .3em; color: #b07a68; }
+  .hook { margin-top: 14px; font-size: 20px; line-height: 1.6; color: #8f6d60; }
+  .hook s { text-decoration: none; border-bottom: 2px dashed #d9b3a4; }
+  h1 { margin-top: 6px; font-size: 50px; line-height: 1.2; font-weight: 900; letter-spacing: .02em; color: #3a2e2b; }
+  ul { list-style: none; margin-top: 14px; }
+  li { font-size: 18px; line-height: 1.7; color: #5a4a44; }
+  li em { font-style: normal; color: #a4553f; font-weight: 700; }
+  .en { margin-top: 10px; font-size: 14px; line-height: 1.5; color: #a0908a; font-family: "Segoe UI", sans-serif; }
+  .steps { position: absolute; left: 630px; right: 64px; bottom: 70px; display: flex; justify-content: space-between; }
+  .steps::before { content: ""; position: absolute; left: 7px; right: 60px; top: 7px; height: 2px; background: #e6cfc4; }
+  .step { position: relative; font-size: 14px; color: #6f5b53; }
+  .step::before { content: ""; display: block; width: 14px; height: 14px; border-radius: 50%; background: #b5705a; margin-bottom: 10px; box-shadow: 0 0 0 4px #f9eee8; }
+  .url { position: absolute; left: 630px; bottom: 34px; font: 14px Consolas, monospace; color: #b9a49b; letter-spacing: .04em; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="dots"></div>
+  <div class="tagline">promise-alarm</div>
+
+  <!-- 约定 -->
+  <div class="phone before">
+    <div class="bar"><i></i>和小机的聊天<span>14:02</span></div>
+    <div class="msgs">
+      <div class="me">好困，我眯十分钟</div>
+      <div class="me">记得叫我</div>
+      <div class="ai">好，十分钟后叫你。<br>睡吧，我在。</div>
+      <div class="chip">⏰ 14:12 叫你起床<b>×</b></div>
+      <div class="zz">z z z</div>
+    </div>
+    <div class="input">说点什么…</div>
+  </div>
+
+  <!-- 到点 -->
+  <div class="phone after">
+    <div class="bar"><i></i>和小机的聊天<span>14:12</span></div>
+    <div class="note">
+      <div class="ico">⏰</div>
+      <div><p><b>小机</b>现在</p><div>十分钟到了，起来啦。</div></div>
+    </div>
+    <div class="msgs" style="padding-top:92px">
+      <div class="time">14:12</div>
+      <div class="ai kept"><small>⏰ 说好的，来了</small>十分钟到了，起来啦。<br><br>先喝口水，慢慢醒，我在这儿。</div>
+      <div class="me">再五分钟……</div>
+      <div class="ai">行，五分钟。<br>这次我也会准时来。</div>
+      <div class="chip">⏰ 14:17 再叫你一次<b>×</b></div>
+    </div>
+    <div class="input">说点什么…</div>
+  </div>
+
+  <div class="copy">
+    <div class="eyebrow">给 AI 的聊天闹钟</div>
+    <p class="hook">还在为小机说「<s>过会儿叫你</s>」，<br>却从来没真的叫过而苦恼吗？</p>
+    <h1>说好的时间，<br>它真的会来。</h1>
+    <ul>
+      <li>聊天里答应的时间<em>自动记下</em>，改口、取消也认得</li>
+      <li>到点<em>用它自己的口吻</em>来找你，不是冷冰冰的闹钟</li>
+      <li>你提前醒了？它看过聊天，<em>顺着说</em></li>
+    </ul>
+    <p class="en">Your AI says "I'll wake you in ten minutes" — and ten minutes later, it actually does.</p>
+  </div>
+  <div class="steps">
+    <div class="step">双击运行</div>
+    <div class="step">填上 API Key</div>
+    <div class="step">跟它约个时间</div>
+    <div class="step">到点它来找你</div>
+  </div>
+  <div class="url">github.com/Monagwd/promise-alarm</div>
+</div>
+</body>
+</html>
